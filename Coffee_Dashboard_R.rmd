@@ -1,13 +1,14 @@
+# %% [code]
 ---
 title: "Home of Coffee"
-author: "Cheng Nie"
+author: "Galen"
 date: "August 4, 2023"
 output: 
   flexdashboard::flex_dashboard:
     orientation: columns
     social: ["menu"]
-    source_code: embed
-    vertical_layout: fill
+    source_code: "https://github.com/Fredick-nc/Dashboard-in-R---Coffee-Dataset"
+    vertical_layout: scroll
     theme: yeti
 runtime: shiny
 ---
