@@ -7,10 +7,9 @@ output:
   flexdashboard::flex_dashboard:
     orientation: columns
     social: ["menu"]
-    source_code: "https://github.com/Fredick-nc/Dashboard-in-R---Coffee-Dataset"
+    source_code: embed
     vertical_layout: fill
     theme: yeti
-runtime: shiny
 ---
 
 ``` {js}
