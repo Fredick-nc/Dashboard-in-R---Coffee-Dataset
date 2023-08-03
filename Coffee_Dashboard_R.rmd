@@ -1,4 +1,3 @@
-# %% [code]
 ---
 title: "Home of Coffee"
 author: "Galen"
