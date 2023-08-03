@@ -1,0 +1,525 @@
+---
+title: "Home of Coffee"
+author: "Cheng Nie"
+date: "August 4, 2023"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: ["menu"]
+    source_code: embed
+    vertical_layout: fill
+    theme: yeti
+runtime: shiny
+---
+
+``` {js}
+// Inverse the color of navigation bar.
+$('.navbar-inverse').removeClass('navbar-inverse').addClass('navbar-default');
+```
+
+```{r setup, include=FALSE}
+## Import Needed Packages
+library(flexdashboard) 
+library(highcharter) 
+library(plotly) 
+library(viridis) 
+library(tidyverse)
+library(countrycode) 
+library(rjson) 
+library(crosstalk) 
+library(DT)
+library(dplyr)
+library(ggmap)
+library(knitr)
+library(shiny)
+library(leaflet)
+library(kableExtra)
+```
+
+```{r include=FALSE}
+## Import the Data Needed in this project  
+data <- read_csv("/Users/niecheng/Desktop/Data5002 Data Visualisation/Assignment2/coffee.csv")
+
+## Data preprocessing
+### Rename the columns of the data
+colnames(data) <- c("Country", "Region", "Min_Altitude", "Max_Altitude", "Avg_Altitude", 
+                    "Year", "Owner", "Species", "Variety", "Processing_method", "Number_of_bags", "Bag_weight",
+                    "Aroma_Scores", "Flavor_Scores", "Aftertaste_Scores", "Acidity_Scores", "Body_Scores", "Balance_Scores",
+                    "Uniformity_Scores", "Sweetness_Scores", "Moisture_Scores", "Total_Scores", "Color")
+
+### Remove the missing value
+del1 <- which(data$Region=="nan")
+data_del1 <- data[-del1,]
+del2 <- which(data_del1$Owner=="nan")
+data_del2 <- data_del1[-del2,]
+del3 <- which(data_del2$Variety=="nan")
+data_del3 <- data_del2[-del3,]
+del4 <- which(data_del3$Processing_method=="nan")
+data_del4 <- data_del3[-del4,]
+del5 <- which(data_del4$Color=="None")
+data_cleaned <- data_del4[-del5,]
+
+### Some data here are also unreasonable, like altitude about 100000, after searching information, we know that the suitable altiitude for growing coffee is around 1000~2000, so here we need to remove those unnormal data in column 'Avg_Altitude'.
+### Here I will remove all the altitude more than 5000
+data_cleaned <- data_cleaned[data_cleaned$Avg_Altitude <= 5000, ]
+
+### After removing all the missing values, there are 796 instances remaining
+### Set the type of qualitative variable as "Character" for easily visualizing
+data_cleaned <- data_cleaned %>%
+  mutate(Country = as.character(Country), 
+         Region = as.character(Region),
+         Owner = as.character(Owner),
+         Species = as.character(Species), 
+         Variety = as.character(Variety),
+         Processing_method = as.character(Processing_method),
+         Color = as.character(Color))
+
+### In order to give audience direct recommendation of coffee, here create a new column according to the total scores called rating, 1-5, 5 means the most recommended coffee]
+data_cleaned <- data_cleaned %>%
+  mutate(Rating = case_when(
+    Total_Scores < 65 ~ 1,
+    Total_Scores >= 65 & Total_Scores < 70 ~ 2,
+    Total_Scores >= 70 & Total_Scores < 80 ~ 3,
+    Total_Scores >= 80 & Total_Scores < 85 ~ 4,
+    Total_Scores >= 85 ~ 5
+  ))
+
+# Extract column names for filtering the variables later
+valnames <- c("Aroma", "Flavor", "Aftertaste", "Acidity", "Body", "Balance",
+              "Uniformity", "Sweetness", "Moisture", "Total")
+valvars  <- c("Aroma_Scores", "Flavor_Scores", "Aftertaste_Scores", "Acidity_Scores", "Body_Scores", "Balance_Scores","Uniformity_Scores", "Sweetness_Scores", "Moisture_Scores", "Total_Scores")
+names(valvars) <- valnames
+
+colvars <- c("Year", "Species", "Variety", "Processing_method", "Color","Rating")
+colnames <- c("Year", "Species", "Variety", "Processing Methods", "Color","Rating")
+names(colvars) <- colnames
+
+```
+
+
+```{r include=FALSE}
+# Fix the names of some of the countries in our data to match the country names 
+# used by our map later on so that they'll be interpreted and displayed. 
+data_cleaned <- data_cleaned %>%
+  mutate(Country = fct_recode(Country, "Tanzania, United Republic Of" = "Tanzania"),
+         Country = fct_recode(Country, "Papua New Guinea" = "The Independent State of Papua New Guinea"),
+         Country = fct_recode(Country, "Costa Rica" = "The Republic of Costa Rica"),
+         Country = fct_recode(Country, "El Salvador" = "The Republic of El Salvador"),
+         Country = fct_recode(Country, "Cote d?Ivoire" = "The Republic of Cote d'ivoire"),
+         Country = fct_recode(Country, "United States of America" = "United States"))
+
+# Create new column in our data for continent. Use countrycode() to extract continents from country names.
+data_cleaned$continent <- countrycode(sourcevar = data_cleaned$Country,
+                              origin = "country.name",
+                              destination = "continent")
+
+# Reclassify countries that have been coded as 'Americas', by countrycode(), into 'North America' and 'South America'. 
+south_america <- c('Brazil', 'Panama', 'Colombia', 'Costa Rica', 'Peru')
+
+data_cleaned$continent[data_cleaned$Country %in% south_america] <- 'South America'
+data_cleaned$continent[data_cleaned$continent=='Americas'] <- 'North America'
+```
+
+<style>
+.colored {
+  background-color: #FAFAFA;
+}
+</style>
+
+Coffee Exploration {data-icon="ion-eye"} 
+=======================================================================
+
+Column {.tabset .tabset-fade data-height=350 .colored}
+-------------------------------------
+
+```{r,fig.width=7, fig.height=5}
+colors_vector <- c("#1f77b4", "#d62728")
+
+# Create histogram of Average Altitude by species and year.
+highchart() %>%
+hc_add_series(data_cleaned, hcaes(x = Year, y = Avg_Altitude, group = Species), type = "column", color = colors_vector)  %>% 
+    hc_tooltip(borderWidth = 1.5, pointFormat = paste("Average Altitude: <b>{point.y}</b>")) %>%
+    hc_title(text = "The Average Altitude of Coffee by Year and Species", style = list(fontSize = "18px", fontFamily = "Arial")) %>% 
+    hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial")) %>%
+    hc_yAxis(labels = list(style = list(fontSize = "10px", fontFamily = "Arial")),
+             title = list(text = "Average altitude in different coffees", 
+                          style = list(fontSize = "12px", fontFamily = "Arial"))) %>%       
+    hc_legend(verticalAlign = 'bottom', enabled = TRUE)
+```
+
+
+```{r,fig.width=8, fig.height=5}
+color_list <- c("#ff7f0e","#66a61e", "#d62728", "#1f78b4")
+
+p <- plot_ly(
+  data = data_cleaned,
+  x = ~Number_of_bags, y = ~Bag_weight, 
+  color = ~Color, colors = color_list,
+  type = "scatter", alpha = 0.8
+)
+p <- p %>% layout(
+  title = list(text = "Quantity and Weight of Coffee by Color", font = list(size = 18, family = "Arial")),
+  xaxis = list(title = "Number of Bags tested",titlefont = list(size = 12, family = "Arial"),tickfont = list(size = 10, family = "Arial")),
+  yaxis = list(title = "Bag Weight tested",titlefont = list(size = 12, family = "Arial"),tickfont = list(size = 10, family = "Arial")),
+  plot_bgcolor = "rgba(0, 0, 0, 0)",   # Set the plot background color to transparent
+  paper_bgcolor = "rgba(0, 0, 0, 0)"   # Set the paper background color to transparent
+)
+
+p
+```
+
+
+Column {.tabset .tabset-fade data-height=350 .colored}
+-------------------------------------
+
+```{r}
+# Sort the data by Total_Scores in descending order and select the top 10 rows
+top_10_coffees <- data_cleaned %>%
+  arrange(desc(Total_Scores)) %>%
+  head(10)
+
+# Create a formatted table using kable
+coffee_table <- top_10_coffees %>%
+  select(Country, Year, Variety, Color, Processing_method, Total_Scores, Rating) %>%
+  kable() %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+  add_header_above(c("Details for Top 10 Coffees" = 7))
+
+
+# Display the table
+coffee_table
+```
+
+```{r}
+processing_proportions <- data_cleaned %>%
+  group_by(Processing_method) %>%
+  summarise(count = n()) %>%
+  mutate(prop = count / sum(count))
+
+highchart() %>%
+  hc_add_series(processing_proportions, hcaes(x = Processing_method, y = prop), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("Processing Methods: <b>{point.Processing_method} ({point.percentage:.1f}%)</b> <br> The proporation of Processing Method: <b>{point.y}</b>")) %>%
+  hc_title(text = "Worldwide Coffees by Processing Methods", style = list(fontSize = "18px", fontFamily = "Arial")) %>%
+  hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial"))
+```
+
+
+Coffee Varieties {data-icon="ion-coffee"} 
+========================================================================
+
+Row {.tabset .tabset-fade data-height=650 .colored}
+-----------------------------------------------------------------------
+
+```{r,fig.width=8, fig.height=5}
+most_common_varieties <- data_cleaned %>%
+  group_by(Country, Variety) %>%
+  summarize(Count = n()) %>%
+  group_by(Country) %>%
+  filter(Count == max(Count)) %>%
+  ungroup()
+
+# Create the world map
+world_map <- plot_geo(most_common_varieties, locationmode = 'country names', locations = ~Country, text = ~Variety, z = ~Count) %>%
+  add_trace(type = 'choropleth', colors = 'Blues', colorbar = list(title = 'Counts of Variety',font = list(size = 12, family = "Arial"))) %>%
+  layout(
+    title = list(text = "The Most Common Coffee Variety by Country",font = list(size = 18, family = "Arial")),
+    geo = list(
+      projection = list(type = 'mercator'),
+      showlakes = TRUE,
+      lakecolor = toRGB('white')
+    ),
+    plot_bgcolor = "rgba(0, 0, 0, 0)",   # Set the plot background color to transparent
+    paper_bgcolor = "rgba(0, 0, 0, 0)"   # Set the paper background color to transparent
+  )
+
+# Display the world map
+world_map
+```
+
+
+```{r,fig.width=8, fig.height=5}
+# First, make a tibble of coffees by color. We will use this for our pie chart.
+color_proportions <- data_cleaned %>%
+  group_by(Color) %>%
+  summarise(count = n()) %>%
+  mutate(prop = count / sum(count))
+
+custom_colors <- c( "#00FFFF","#00CED1","green","grey" )
+
+# Create pie chart for gender. 
+highchart() %>% 
+  hc_add_series(color_proportions, hcaes(x = Color, y = prop), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("Coffee Color: <b>{point.Color} ({point.percentage:.1f}%)</b> <br> The proporation of Color : <b>{point.y}</b>")) %>%
+  hc_title(text = "Worldwide Coffees by Color") %>% 
+  hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial")) %>%
+  hc_plotOptions(pie = list(dataLabels = list(distance = 15, 
+                                 style = list(fontSize = 10)), 
+                                colors = custom_colors)) 
+```
+
+Row {.tabset .tabset-fade data-height=350 .colored }
+-----------------------------------------------------------------------
+
+```{r}
+# First, make a tibble of coffees by variety. We will use this for our funnel chart.
+variety_count <- data_cleaned %>%
+  group_by(Variety) %>%
+  summarise(count = n()) %>%
+  mutate(count_variety = count)
+
+colors_vector <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+                   "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+                   "#aec7e8", "#ffbb78", "#00CED1", "#c5b0d5",
+                   "#c49c94", "#f7b6d2", "#c7c7c7", "#dbdb8d", "#9edae5")
+
+# Create the funnel chart
+highchart() %>% 
+  hc_add_series(variety_count, hcaes(x = Variety, y = count_variety), type = "funnel") %>% 
+  hc_tooltip(headerFormat = "<b>{point.key}</b><br>",
+             pointFormat = "Species: <b>{point.Species}</b><br>Number: <b>{point.y}</b>") %>%
+  hc_title(text = "Number of Different Coffee Varieties", style = list(fontSize = "18px", fontFamily = "Arial")) %>%
+  hc_plotOptions(pie = list(dataLabels = list(distance = 15, 
+                                 style = list(fontSize = 10)), 
+                                 size = 130, 
+                                 colors = colors_vector)) %>%
+  hc_legend(enabled = FALSE)  
+```
+
+
+```{r}
+color_list <- c(
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
+  "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+  "#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e",
+  "#e6ab02", "#a6761d", "#666666", "#a6cee3", "#1f78b4",
+  "#b2df8a", "#33a02c", "#fb9a99", "#fdbf6f", "#ff7f00",
+  "#cab2d6", "#6a3d9a"
+)
+
+highchart() %>%
+hc_add_series(data_cleaned, hcaes(x = Year, y = Number_of_bags, group = Variety), type = "bar", color = color_list)  %>% 
+    hc_tooltip(borderWidth = 2, pointFormat = paste("Variety: <b>{point.Variety}</b><br>Number of Bags: <b>{point.y}</b>")) %>%
+    hc_title(text = "Coffee Output by Year and Variety", style = list(fontSize = "18px", fontFamily = "Arial")) %>% 
+    hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial")) %>%
+    hc_yAxis(labels = list(style = list(fontSize = "10px", fontFamily = "Arial")),
+             title = list(text = "Amount of bags", style = list(fontSize = "12px", fontFamily = "Arial")),
+             plotLines = list( list(color = "black", width = 0.5, dashStyle = "Dash", label = list(style = list(color = "black", fontSize = 5))))) %>%      hc_legend(verticalAlign = 'bottom', enabled = TRUE) 
+
+```
+
+
+Worldwide Distribution {data-icon="ion-android-globe"} 
+========================================================================
+
+Row {data-height = 400}
+-----------------------------------------------------------------------
+
+```{r,fig.width=7, fig.height=5}
+average_scores_by_country <- data_cleaned %>%
+  group_by(Country) %>%
+  summarize(Average_Total_Scores = mean(Total_Scores, na.rm = TRUE))
+
+highchart() %>%
+    hc_add_series(average_scores_by_country, hcaes(x = Country, y = Average_Total_Scores, color = Average_Total_Scores), type = "bar")  %>% 
+    hc_tooltip(borderWidth = 1.5, 
+               pointFormat = paste("Average coffee scores: <b>{point.y}</b>")) %>%
+    hc_legend(enabled = FALSE) %>%
+    hc_title(text = "Average coffee scores by Country", style = list(fontSize = "18px", fontFamily = "Arial")) %>% 
+    hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial")) %>%
+    hc_xAxis(categories = average_scores_by_country$Country, 
+             labels = list(step = 1),
+             min = 0, max = 28,
+             scrollbar = list(enabled = TRUE)) %>%
+    hc_yAxis(title = list(text = "Average Coffee Scores")) %>%
+    hc_plotOptions(bar = list(stacking = "normal", 
+                              pointPadding = 0, groupPadding = 0, borderWidth = 0.5)) 
+```
+
+
+
+```{r,fig.width=7, fig.height=5}
+# Calculate the number of coffee ratings equal to 5 for each continent
+continent_tibble <- data_cleaned %>%
+  group_by(continent) %>%
+  summarize(number_of_ratings_5 = sum(Rating == 5, na.rm = TRUE)) %>%
+  arrange(continent)
+
+# Download continent map.
+map_data <- download_map_data("custom/world-continents")
+
+# Create continent map with coffee ratings data
+highchart() %>%
+  hc_add_series_map(map_data, continent_tibble, value = "number_of_ratings_5", joinBy = c('name', 'continent'), name = "Number of Ratings 5") %>%
+  hc_colorAxis(stops = color_stops()) %>%
+  hc_title(text = "Number of Coffee Rating 5 by Continent", style = list(fontSize = "18px", fontFamily = "Arial")) %>%
+  hc_subtitle(text = "2011 - 2018", style = list(fontSize = "13px", fontFamily = "Arial")) %>%
+  hc_tooltip(
+    borderWidth = 1.5,
+    pointFormat = "<b>{point.name}</b><br>Number of Ratings 5: {point.value}"
+  ) %>%
+  hc_plotOptions(
+    map = list(
+      events = list(
+        click = JS(
+          "function(event) {
+            // Custom click event code if needed
+          }"
+        )
+      )
+    )
+  ) 
+```
+
+Row {data-height=600}
+-----------------------------------------------------------------------
+
+```{r, fig.width=4, fig.height=10}
+rating_counts_by_species_color <- data_cleaned %>%
+  group_by(Species, Color) %>%
+  summarize(Count = n())
+
+d <- SharedData$new(rating_counts_by_species_color)
+
+bscols(widths = c(1,NA),
+        list(
+          filter_checkbox("Species", "Species", d, ~ Species, inline = FALSE),
+          filter_checkbox("Color", "Color", d, ~ Color, inline = FALSE)
+        ),
+       list(
+         plot_ly(d, x = ~Species, y = ~Count, color = ~Color, type = "bar")%>% 
+           layout(title = 'The number of Ratings by Color and Species', title_font = list(size = 18, family = "Arial"), yaxis = list(title = "", showticklabels = TRUE),  plot_bgcolor = "rgba(0, 0, 0, 0)", paper_bgcolor = "rgba(0, 0, 0, 0)"),
+         plot_ly(d, x = ~Color, y = ~Count, color = ~Species, type = "bar")%>% 
+           layout(yaxis = list(title = "", showticklabels = TRUE),  plot_bgcolor = "rgba(0, 0, 0, 0)", paper_bgcolor = "rgba(0, 0, 0, 0)")
+       ))
+
+```
+
+
+Scores' Relationship {data-icon="fa-search"} 
+=======================================================================
+
+Column {data-width=275}
+-----------------------------------------------------------------------
+
+### Filters {.no-title .colored }
+
+**Pick filters here:**
+
+```{r}
+selectInput("xvar", "X-axis", choices = valnames, selected = valnames[3], multiple = FALSE)
+selectInput("yvar", "Y-axis", choices = valnames, selected = valnames[1], multiple = FALSE)
+selectInput("sizevar", "Size", choices = valnames, selected = valnames[2], multiple = FALSE)
+selectInput("colvar", "Color", choices = colnames, selected = colnames[1], multiple = FALSE)
+```
+
+
+Column {data-width=725}
+-----------------------------------------------------------------------
+
+### Relationships among all indexes {.no-title .colored }
+
+```{r}
+## Keep track of selected countries
+selected <- reactiveVal(c())
+  
+## Fetch the column names of selected variables
+xvar <- reactive(valvars[[input$xvar]])
+yvar <- reactive(valvars[[input$yvar]])
+sizevar <- reactive(valvars[[input$sizevar]])
+colvar <- reactive(colvars[[input$colvar]])
+  
+## Update the dataset based on selected variables
+toplot <- reactive({
+    data_cleaned %>%
+      mutate(x = .data[[xvar()]],
+             y = .data[[yvar()]],
+             # Note: plotly (and ggplot) automatically s
+             # quare root size by default
+             size = .data[[sizevar()]], 
+             color = .data[[colvar()]]) %>%
+      rowwise() %>%
+      mutate(text = paste(unique(c(
+        sprintf("%s (%0.0f)", Country, Year),
+        sprintf("%s: %s ", input$xvar, x),
+        sprintf("%s: %s ", input$yvar, y),
+        sprintf("%s: %s ", input$sizevar, size),
+        sprintf("%s: %s ", input$colvar, color)
+      )),
+      collapse = "\n")
+      ) %>% ungroup()
+})
+```
+
+```{r}
+renderPlotly({
+    plot_ly(toplot()) %>%
+      add_trace(type = "scatter", mode = "markers",
+                size = ~size, x = ~x, y = ~y, color = ~color, frame = ~Year,
+                hoverinfo = "text", hovertext = ~text,
+                customdata = ~Country, 
+                selectedpoints = ~as.list(
+                  which(sort(unique(Country)) %in% isolate(selected())) - 1)
+      ) %>%
+      layout(
+        xaxis = list(
+          title = input$xvar
+        ),
+        yaxis = list(
+          title = input$yvar
+        ),
+        legend = list(title = list(text = input$colvar)),
+        clickmode = "select+event",
+        dragmode = "select"
+      ) %>%
+      event_register("plotly_selected")
+  })
+
+# Here are the codes similar to the code at the end in the Lab_week8 
+
+# renderPlotly({
+#     req(length(selected()) != 0)
+#     plot_ly(filter(toplot(), Country %in% selected())) %>%
+#       add_trace(type = "scatter", mode = "markers+lines",
+#                 x = ~Year, y = ~y, 
+#                 color = ~Country, 
+#                 hoverinfo = "text", hovertext = ~text) %>%
+#       layout(yaxis = list(title = input$yvar),
+#              xaxis = list(title = "Year"),
+#              showlegend = TRUE)
+#   })
+
+# observeEvent(event_data("plotly_selected"), {
+#     selected(event_data("plotly_selected")$customdata)
+# })
+```
+
+About {data-icon="fa-info-circle"}
+=======================================================================
+
+### {data-height=600}
+
+```{r}
+knitr::include_graphics("/Users/niecheng/Desktop/Data5002 Data Visualisation/Assignment2/coffee.jpg")
+```
+
+
+### {data-height=400}
+
+**References:**  
+
+The dataset used to create the dashboard can be found at:   
+
+* https://think.cs.vt.edu/corgis/csv/coffee/
+
+The dashboard ideas refer to these programs: 
+
+* NewYork Airbnb Dashboard. (2019). By BILLY NGUYEN. Retrieved from https://www.kaggle.com/code/billynguyen/newyork-airbnb-dashboard/report
+
+* Suicide data - Full interactive dashboard. (2020). By SABA TAVOOSI. Retrieved from https://www.kaggle.com/code/tavoosi/suicide-data-full-interactive-dashboard/report
+
+* Interactive Flex dashaboard in R Programming. (2021). By SACHIN SHARMA. Retrieved from https://www.kaggle.com/code/sachinudgam/interactive-flex-dashaboard-in-r-programming/report
+
+* Cool Dashboard in R with YouTube Tutorial. (2021). By MIGUEL FZZZ. Retrieved from https://www.kaggle.com/code/miguelfzzz/cool-dashboard-in-r-with-youtube-tutorial/report
+
+* COVID-19 Impact Interactive Dashboard [updated]. (2022). By AMRRS. Retrieved from https://www.kaggle.com/code/nulldata/covid-19-impact-interactive-dashboard-updated/report
+
