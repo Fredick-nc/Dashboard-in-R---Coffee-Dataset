@@ -4,8 +4,7 @@ title: "Home of Coffee"
 # date: "August 4, 2023"
 output: 
   flexdashboard::flex_dashboard:
-    orientation: columns
-    source_code: embed
+    source_code: "https://github.com/Fredick-nc/Dashboard-in-R---Coffee-Dataset"
     vertical_layout: scroll
     theme: yeti
 ---
