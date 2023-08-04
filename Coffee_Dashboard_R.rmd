@@ -129,7 +129,7 @@ Coffee Exploration {data-icon="ion-eye"}
 Column {.tabset .tabset-fade data-height=350 .colored}
 -------------------------------------
 
-```{r,fig.width=7, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 colors_vector <- c("#1f77b4", "#d62728")
 
 # Create histogram of Average Altitude by species and year.
@@ -145,7 +145,7 @@ hc_add_series(data_cleaned, hcaes(x = Year, y = Avg_Altitude, group = Species), 
 ```
 
 
-```{r,fig.width=8, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 color_list <- c("#ff7f0e","#66a61e", "#d62728", "#1f78b4")
 
 p <- plot_ly(
@@ -207,7 +207,7 @@ Coffee Varieties {data-icon="ion-coffee"}
 Row {.tabset .tabset-fade data-height=650 .colored}
 -----------------------------------------------------------------------
 
-```{r,fig.width=8, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 most_common_varieties <- data_cleaned %>%
   group_by(Country, Variety) %>%
   summarize(Count = n()) %>%
@@ -234,7 +234,7 @@ world_map
 ```
 
 
-```{r,fig.width=8, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 # First, make a tibble of coffees by color. We will use this for our pie chart.
 color_proportions <- data_cleaned %>%
   group_by(Color) %>%
@@ -311,7 +311,7 @@ Worldwide Distribution {data-icon="ion-android-globe"}
 Row {data-height = 400}
 -----------------------------------------------------------------------
 
-```{r,fig.width=7, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 average_scores_by_country <- data_cleaned %>%
   group_by(Country) %>%
   summarize(Average_Total_Scores = mean(Total_Scores, na.rm = TRUE))
@@ -334,7 +334,7 @@ highchart() %>%
 
 
 
-```{r,fig.width=7, fig.height=5}
+```{r,fig.width=5, fig.height=5}
 # Calculate the number of coffee ratings equal to 5 for each continent
 continent_tibble <- data_cleaned %>%
   group_by(continent) %>%
